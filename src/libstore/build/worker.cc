@@ -103,12 +103,16 @@ static void removeGoal(std::shared_ptr<G> goal, std::map<StorePath, std::weak_pt
 
 void Worker::removeGoal(GoalPtr goal)
 {
-    if (auto drvGoal = std::dynamic_pointer_cast<DerivationGoal>(goal))
+    if (auto drvGoal = std::dynamic_pointer_cast<DerivationGoal>(goal)) {
+        act.result(resUnexpectBuild, store.printStorePath(drvGoal->drvPath));
         nix::removeGoal(drvGoal, derivationGoals);
-    else if (auto subGoal = std::dynamic_pointer_cast<SubstitutionGoal>(goal))
+    }
+    else if (auto subGoal = std::dynamic_pointer_cast<SubstitutionGoal>(goal)) {
+        act.result(resUnexpectSubstitution, store.printStorePath(subGoal->storePath));
         nix::removeGoal(subGoal, substitutionGoals);
-    else
+    } else
         assert(false);
+
     if (topGoals.find(goal) != topGoals.end()) {
         topGoals.erase(goal);
         /* If a top-level goal failed, then kill all other goals
@@ -227,6 +231,12 @@ void Worker::run(const Goals & _topGoals)
         throw Error(
             "%d derivations need to be built, but neither local builds ('--max-jobs') "
             "nor remote builds ('--builders') are enabled", willBuild.size());
+
+    for (auto & path : willBuild)
+        act.result(resExpectBuild, store.printStorePath(path));
+
+    for (auto & path : willSubstitute)
+        act.result(resExpectSubstitution, store.printStorePath(path));
 
     debug("entered goal loop");
 
